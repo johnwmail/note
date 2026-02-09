@@ -1,5 +1,8 @@
 services:
   note:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: ghcr.io/johnwmail/note:latest
     container_name: note
     restart: unless-stopped
