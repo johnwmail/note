@@ -1,0 +1,9 @@
+name = "note"
+main = "src/index.ts"
+compatibility_date = "2026-03-10"
+workers_dev = true
+
+[[r2_buckets]]
+binding = "NOTES_BUCKET"
+bucket_name = "note-prod"
+preview_bucket_name = "note-preview"

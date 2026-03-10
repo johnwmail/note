@@ -1,228 +1,18 @@
-package main
+import { escapeHTML } from "./note";
 
-import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
-)
+export function renderHTML(noteId: string, content: string, request: Request): string {
+  const escapedNoteId = escapeHTML(noteId);
+  const escapedContent = escapeHTML(content);
+  const url = new URL(request.url);
+  const basePath = url.pathname.replace(/\/noteid\/.*$/, "");
+  const appBase = basePath.endsWith("/") ? basePath : `${basePath}/`;
 
-// NoteRequest represents the JSON payload for saving a note
-type NoteRequest struct {
-	NoteID  string `json:"noteId"`
-	Content string `json:"content"`
-}
-
-// NoteResponse represents the JSON response
-type NoteResponse struct {
-	Success bool   `json:"success"`
-	NoteID  string `json:"noteId,omitempty"`
-	Error   string `json:"error,omitempty"`
-}
-
-// HandleGet handles GET requests to retrieve a note
-func HandleGet(storage Storage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		noteID := extractNoteID(r)
-		clientIP := ClientIP(r)
-
-		if noteID != "" {
-			log.Printf("[GET] Retrieving note: %s from %s", noteID, clientIP)
-		} else {
-			// Don't log for local requests, they are not interesting.
-			if clientIP != "127.0.0.1" && clientIP != "::1" {
-				log.Printf("[GET] Creating new note from %s", clientIP)
-			}
-		}
-
-		// Read note content from storage
-		content := ""
-		if noteID != "" {
-			var err error
-			content, err = storage.Read(r.Context(), noteID)
-			if err != nil {
-				log.Printf("[ERROR] Failed to read note %s: %v", noteID, err)
-				http.Error(w, "Internal server error", http.StatusInternalServerError)
-				return
-			}
-			log.Printf("[SUCCESS] Note %s retrieved successfully", noteID)
-		}
-
-		// If the client is curl and a note ID was requested, return raw text
-		if isCurlRequest(r) && noteID != "" {
-			if content == "" {
-				http.Error(w, "Note not found", http.StatusNotFound)
-				return
-			}
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			_, _ = fmt.Fprint(w, content)
-			return
-		}
-
-		// Render HTML with note content
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		renderHTML(w, noteID, content, r)
-	}
-}
-
-// HandlePost handles POST requests to save a note (refactored)
-func HandlePost(storage Storage) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		clientIP := ClientIP(r)
-		log.Printf("[POST] Request from %s", clientIP)
-
-		// CORS and preflight handling
-		setCORSHeaders(w)
-		if r.Method == http.MethodOptions {
-			log.Printf("[POST] Preflight OPTIONS request from %s", clientIP)
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		w.Header().Set("Content-Type", "application/json")
-
-		// Read body
-		bodyBytes, err := io.ReadAll(r.Body)
-		if err != nil {
-			log.Printf("[ERROR] Failed to read request body: %v", err)
-			writeJSONError(w, http.StatusInternalServerError, "Read error")
-			return
-		}
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
-		// Parse request
-		req, contentType, err := parseNoteRequest(r, bodyBytes, clientIP)
-		if err != nil {
-			log.Printf("[ERROR] Failed to parse request from %s: %v", clientIP, err)
-			writeJSONError(w, http.StatusBadRequest, err.Error())
-			return
-		}
-
-		// Ensure note ID
-		noteID := strings.TrimSpace(req.NoteID)
-		if noteID == "" {
-			noteID = GenerateNoteID()
-			log.Printf("[INFO] Generated new note ID: %s", noteID)
-		} else {
-			log.Printf("[INFO] Using provided note ID: %s", noteID)
-		}
-
-		if !ValidateNoteID(noteID) {
-			log.Printf("[ERROR] Invalid note ID format: %s", noteID)
-			writeJSONError(w, http.StatusBadRequest, "Invalid note ID format")
-			return
-		}
-
-		// Save or delete
-		if strings.TrimSpace(req.Content) == "" {
-			log.Printf("[DELETE] Attempting to delete note: %s (Client: %s)", noteID, clientIP)
-			if err := storage.Delete(r.Context(), noteID); err != nil {
-				log.Printf("[ERROR] Failed to delete note %s: %v", noteID, err)
-				writeJSONError(w, http.StatusInternalServerError, "Failed to delete note")
-				return
-			}
-			log.Printf("[SUCCESS] Note %s deleted successfully", noteID)
-		} else {
-			contentSize := len(req.Content)
-			log.Printf("[SAVE] Attempting to save note: %s (size: %d bytes, Client: %s)", noteID, contentSize, clientIP)
-			if err := storage.Write(r.Context(), noteID, req.Content); err != nil {
-				log.Printf("[ERROR] Failed to write note %s: %v", noteID, err)
-				writeJSONError(w, http.StatusInternalServerError, "Failed to save note")
-				return
-			}
-			log.Printf("[SUCCESS] Note %s saved successfully (size: %d bytes)", noteID, contentSize)
-		}
-
-		// Return success response
-		if isCurlRequest(r) {
-			w.Header().Set("Content-Type", "text/plain")
-			fullURL := getBaseURL(r) + "noteid/" + noteID
-			_, _ = fmt.Fprintln(w, fullURL)
-			return
-		}
-
-		if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-			w.Header().Set("Content-Type", "text/plain")
-			_, _ = fmt.Fprintf(w, "OK: %s\n", noteID)
-			return
-		}
-
-		_ = json.NewEncoder(w).Encode(NoteResponse{Success: true, NoteID: noteID})
-	}
-}
-
-// setCORSHeaders sets common CORS response headers
-func setCORSHeaders(w http.ResponseWriter) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-}
-
-// writeJSONError writes a JSON error response
-func writeJSONError(w http.ResponseWriter, status int, message string) {
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(NoteResponse{Success: false, Error: message})
-}
-
-// parseNoteRequest parses the request body into NoteRequest and returns the content type
-func parseNoteRequest(r *http.Request, bodyBytes []byte, clientIP string) (NoteRequest, string, error) {
-	var req NoteRequest
-	contentType := r.Header.Get("Content-Type")
-
-	if strings.Contains(contentType, "application/json") {
-		if err := json.Unmarshal(bodyBytes, &req); err != nil {
-			return req, contentType, fmt.Errorf("invalid JSON format")
-		}
-		// If JSON didn't include a note ID, try to pick it from the path
-		if req.NoteID == "" {
-			req.NoteID = extractPathNoteID(r)
-		}
-		return req, contentType, nil
-	}
-
-	if strings.Contains(contentType, "application/x-www-form-urlencoded") {
-		values, err := url.ParseQuery(string(bodyBytes))
-		if err == nil && (values.Has("text") || values.Has("noteId")) {
-			req.Content = values.Get("text")
-			req.NoteID = values.Get("noteId")
-			log.Printf("[INFO] Parsed form data from %s: noteId=%s, content_length=%d", clientIP, req.NoteID, len(req.Content))
-			return req, contentType, nil
-		}
-		req.Content = string(bodyBytes)
-		log.Printf("[INFO] Received %d bytes from raw form body from %s", len(bodyBytes), clientIP)
-		return req, contentType, nil
-	}
-
-	// Plain text or piped binary data
-	req.Content = string(bodyBytes)
-	// Prefer noteId from query, but fall back to path-based ID (e.g., /noteid/ABCDE)
-	req.NoteID = r.URL.Query().Get("noteId")
-	if req.NoteID == "" {
-		req.NoteID = extractPathNoteID(r)
-	}
-	log.Printf("[INFO] Received %d bytes from raw request body from %s", len(bodyBytes), clientIP)
-	return req, contentType, nil
-}
-
-// isCurlRequest checks if the request is from curl
-func isCurlRequest(r *http.Request) bool {
-	userAgent := r.Header.Get("User-Agent")
-	return strings.Contains(strings.ToLower(userAgent), "curl")
-}
-
-// renderHTML renders the main HTML template with note content
-func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Request) {
-	html := `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+    <link rel="icon" href="/favicon.ico" type="image/gif">
     <title>Note</title>
     <style>
         *, *::before, *::after {
@@ -235,7 +25,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             --blue-600: #2563EB;
             --blue-700: #1D4ED8;
             --blue-50: #EFF6FF;
-            --blue-100: #DBEAFE;
             --white: #FFFFFF;
             --surface: #F8FAFC;
             --border: #E2E8F0;
@@ -266,7 +55,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             width: 100%;
         }
 
-        /* ---- Header ---- */
         .header {
             padding: 12px 20px;
             background: var(--white);
@@ -315,7 +103,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             display: none;
         }
 
-        /* ---- Buttons ---- */
         .controls {
             display: flex;
             gap: 6px;
@@ -368,11 +155,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             flex-shrink: 0;
         }
 
-        .btn-label {
-            display: inline;
-        }
-
-        /* ---- Textarea ---- */
         .editor-wrap {
             flex: 1;
             display: flex;
@@ -405,7 +187,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
         }
 
-        /* ---- Status Bar ---- */
         .status-bar {
             padding: 8px 20px;
             background: var(--blue-50);
@@ -435,14 +216,10 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             transition: background-color 0.3s ease;
         }
 
-        .status-dot.ready    { background: var(--text-muted); }
-        .status-dot.saving   { background: var(--blue-600); }
-        .status-dot.saved    { background: var(--green-500); }
-        .status-dot.error    { background: var(--red-500); }
-
-        #statusText {
-            transition: opacity 0.2s ease;
-        }
+        .status-dot.ready { background: var(--text-muted); }
+        .status-dot.saving { background: var(--blue-600); }
+        .status-dot.saved { background: var(--green-500); }
+        .status-dot.error { background: var(--red-500); }
 
         .status-right {
             color: var(--text-muted);
@@ -450,12 +227,10 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             white-space: nowrap;
         }
 
-        /* ---- Printable ---- */
         #printable {
             display: none;
         }
 
-        /* ---- Toast ---- */
         .toast {
             position: fixed;
             bottom: 60px;
@@ -479,7 +254,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             transform: translateX(-50%) translateY(0);
         }
 
-        /* ---- Responsive: Mobile ---- */
         @media (max-width: 640px) {
             .header {
                 padding: 10px 14px;
@@ -546,7 +320,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             }
         }
 
-        /* ---- Print ---- */
         @media print {
             .header, .controls, .status-bar, .editor-wrap, .toast {
                 display: none !important;
@@ -576,7 +349,7 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         <div class="header">
             <div class="header-left">
                 <h1><span class="logo-icon">✎</span> Note</h1>
-                <span class="note-id" id="noteInfo">` + EscapeHTML(noteID) + `</span>
+                <span class="note-id" id="noteInfo">${escapedNoteId}</span>
             </div>
             <div class="controls">
                 <button class="btn btn-primary" onclick="newNote()" title="New Note">
@@ -599,7 +372,7 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         </div>
 
         <div class="editor-wrap">
-            <textarea id="content" placeholder="Start typing your note...">` + EscapeHTML(content) + `</textarea>
+            <textarea id="content" placeholder="Start typing your note...">${escapedContent}</textarea>
         </div>
 
         <div class="status-bar">
@@ -615,10 +388,9 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
     <div class="toast" id="toast"></div>
 
     <script>
-        const basePath = window.location.pathname.replace(/\/noteid\/.*$/, '');
-        const appBase = basePath.endsWith('/') ? basePath : basePath + '/';
-        let lastSaved = ` + "`" + EscapeHTML(content) + "`" + `;
-        let currentNoteId = "` + EscapeHTML(noteID) + `";
+        const appBase = ${JSON.stringify(appBase)};
+        let lastSaved = ${JSON.stringify(content)};
+        let currentNoteId = ${JSON.stringify(noteId)};
         const textarea = document.getElementById("content");
         const statusText = document.getElementById("statusText");
         const statusDot = document.getElementById("statusDot");
@@ -634,7 +406,7 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         function updateCharCount() {
             const len = textarea.value.length;
             const words = textarea.value.trim() ? textarea.value.trim().split(/\s+/).length : 0;
-            charCountEl.textContent = len > 0 ? words + ' word' + (words !== 1 ? 's' : '') + ' \u00b7 ' + len.toLocaleString() + ' char' + (len !== 1 ? 's' : '') : '';
+            charCountEl.textContent = len > 0 ? words + ' word' + (words !== 1 ? 's' : '') + ' · ' + len.toLocaleString() + ' char' + (len !== 1 ? 's' : '') : '';
         }
 
         function showToast(msg) {
@@ -647,11 +419,9 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
             window.location.href = appBase;
         }
 
-        // Auto-save
         function autoSave() {
             if (textarea.value !== lastSaved) {
                 setStatus('Saving...', 'saving');
-
                 const saveUrl = currentNoteId ? appBase + 'noteid/' + currentNoteId : appBase;
                 fetch(saveUrl, {
                     method: 'POST',
@@ -666,13 +436,11 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
                     if (data.success) {
                         lastSaved = textarea.value;
                         currentNoteId = data.noteId;
-
-                        var newPath = appBase + 'noteid/' + data.noteId;
+                        const newPath = appBase + 'noteid/' + data.noteId;
                         if (window.location.pathname !== newPath && currentNoteId) {
                             window.history.replaceState({}, '', newPath);
                             document.getElementById('noteInfo').textContent = data.noteId;
                         }
-
                         setStatus('Saved', 'saved');
                         setTimeout(function() {
                             if (statusText.textContent === 'Saved') setStatus('Ready', 'ready');
@@ -690,7 +458,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
 
         setInterval(autoSave, 1000);
 
-        // TAB key
         textarea.addEventListener('keydown', function(e) {
             if (e.key === 'Tab') {
                 e.preventDefault();
@@ -709,6 +476,19 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         printableEl.textContent = textarea.value;
         updateCharCount();
 
+        function fallbackCopy(text) {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = false;
+            try { ok = document.execCommand('copy'); } catch (e) {}
+            document.body.removeChild(ta);
+            return ok;
+        }
+
         function copyToClipboard(text) {
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 return navigator.clipboard.writeText(text).then(function() {
@@ -718,19 +498,6 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
                 });
             }
             return Promise.resolve(fallbackCopy(text));
-        }
-
-        function fallbackCopy(text) {
-            var ta = document.createElement('textarea');
-            ta.value = text;
-            ta.style.position = 'fixed';
-            ta.style.left = '-9999px';
-            document.body.appendChild(ta);
-            ta.select();
-            var ok = false;
-            try { ok = document.execCommand('copy'); } catch(e) {}
-            document.body.removeChild(ta);
-            return ok;
         }
 
         function copyNoteLink() {
@@ -752,52 +519,5 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         textarea.focus();
     </script>
 </body>
-</html>`
-
-	_, _ = fmt.Fprint(w, html)
-}
-
-// extractPathNoteID extracts a note ID from a path of the form /.../noteid/{id}
-func extractPathNoteID(r *http.Request) string {
-	path := r.URL.Path
-	if idx := strings.Index(path, "/noteid/"); idx != -1 {
-		id := path[idx+len("/noteid/"):]
-		// strip any trailing slash
-		id = strings.Trim(id, "/")
-		return id
-	}
-	return ""
-}
-
-// extractNoteID returns the note id either from query (?note=) or from /noteid/{id}
-func extractNoteID(r *http.Request) string {
-	if id := r.URL.Query().Get("note"); id != "" {
-		return id
-	}
-	return extractPathNoteID(r)
-}
-func getBaseURL(r *http.Request) string {
-	if urlEnv := os.Getenv("URL"); urlEnv != "" {
-		if !strings.HasSuffix(urlEnv, "/") {
-			urlEnv += "/"
-		}
-		return urlEnv
-	}
-	scheme := "http"
-	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
-		scheme = "https"
-	}
-	host := r.Host
-	if fwdHost := r.Header.Get("X-Forwarded-Host"); fwdHost != "" {
-		host = fwdHost
-	}
-	// Remove any trailing /noteid/{id} from the path to get the app root (supports reverse proxy subpaths)
-	path := r.URL.Path
-	if idx := strings.Index(path, "/noteid/"); idx != -1 {
-		path = path[:idx]
-	}
-	if !strings.HasSuffix(path, "/") {
-		path += "/"
-	}
-	return scheme + "://" + host + path
+</html>`;
 }
