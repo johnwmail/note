@@ -1,4 +1,5 @@
 import { escapeHTML } from "./note";
+import { APP_VERSION, REPOSITORY_URL } from "./version";
 
 export function renderHTML(noteId: string, content: string, request: Request): string {
   const escapedNoteId = escapeHTML(noteId);
@@ -75,16 +76,42 @@ export function renderHTML(noteId: string, content: string, request: Request): s
             min-width: 0;
         }
 
-        .header h1 {
+        .header-title {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            color: var(--text-primary);
+            min-width: 0;
+        }
+
+        .header-title:hover .header-title-text {
+            color: var(--blue-600);
+        }
+
+        .header-title-text {
             font-size: 20px;
             font-weight: 700;
             color: var(--text-primary);
             letter-spacing: -0.025em;
             white-space: nowrap;
+            transition: color 0.15s ease;
         }
 
-        .header h1 .logo-icon {
+        .logo-icon {
             color: var(--blue-600);
+            flex-shrink: 0;
+        }
+
+        .version-badge {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: "SF Mono", "Monaco", "Menlo", "Consolas", monospace;
+            border: 1px solid var(--border);
+            background: var(--white);
+            padding: 2px 6px;
+            border-radius: 999px;
+            white-space: nowrap;
         }
 
         .note-id {
@@ -260,10 +287,11 @@ export function renderHTML(noteId: string, content: string, request: Request): s
                 gap: 8px;
             }
 
-            .header h1 {
+            .header-title-text {
                 font-size: 17px;
             }
 
+            .version-badge,
             .note-id {
                 display: none;
             }
@@ -348,7 +376,11 @@ export function renderHTML(noteId: string, content: string, request: Request): s
     <div class="container">
         <div class="header">
             <div class="header-left">
-                <h1><span class="logo-icon">✎</span> Note</h1>
+                <a class="header-title" href="${REPOSITORY_URL}" target="_blank" rel="noreferrer">
+                    <span class="logo-icon">✎</span>
+                    <span class="header-title-text">Note</span>
+                    <span class="version-badge">${escapeHTML(APP_VERSION)}</span>
+                </a>
                 <span class="note-id" id="noteInfo">${escapedNoteId}</span>
             </div>
             <div class="controls">

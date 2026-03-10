@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Set app version from tag
+        run: echo "export const APP_VERSION = '${GITHUB_REF_NAME}'; export const REPOSITORY_URL = 'https://github.com/johnwmail/note';" > src/version.ts
+
       - name: Verify app
         run: npm run verify
 

@@ -100,6 +100,8 @@ Rules:
 - empty content deletes the note
 - curl GET returns raw note text
 - curl POST returns the full note URL
+- the app header links to the GitHub repository
+- app version defaults to `vdev` and tag deploys replace it with the release tag
 
 ## Testing
 
