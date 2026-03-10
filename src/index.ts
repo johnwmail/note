@@ -70,7 +70,7 @@ async function handleGet(request: Request, env: Env, url: URL): Promise<Response
 }
 
 function renderCurlHelp(url: URL): string {
-  const host = url.host;
+  const origin = url.origin;
   return [
     "Note - Lightweight note-taking app",
     `Version: ${APP_VERSION}`,
@@ -79,12 +79,12 @@ function renderCurlHelp(url: URL): string {
     "===============",
     "",
     "# create new paste:",
-    `echo \"Hello World\" | curl -sL --data-binary @- https://${host}`,
+    `echo \"Hello World\" | curl -sL --data-binary @- ${origin}/`,
     "",
     "# create new paste with file:",
-    `curl -sL --data-binary @/path/to/file.txt https://${host}`,
+    `curl -sL --data-binary @/path/to/file.txt ${origin}/`,
     "",
-    `For more information and web interface, visit: https://${host}`,
+    `For more information and web interface, visit: ${origin}/`,
     "",
   ].join("\n");
 }

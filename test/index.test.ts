@@ -88,7 +88,7 @@ describe("worker", () => {
   });
 
   it("returns plain text usage for curl root", async () => {
-    const response = await worker.fetch(new Request("https://example.com/", {
+    const response = await worker.fetch(new Request("http://example.com/", {
       headers: { "User-Agent": "curl/8.5.0" },
     }), makeEnv() as never);
     expect(response.status).toBe(200);
@@ -101,12 +101,12 @@ describe("worker", () => {
       "===============",
       "",
       "# create new paste:",
-      "echo \"Hello World\" | curl -sL --data-binary @- https://example.com",
+      "echo \"Hello World\" | curl -sL --data-binary @- http://example.com/",
       "",
       "# create new paste with file:",
-      "curl -sL --data-binary @/path/to/file.txt https://example.com",
+      "curl -sL --data-binary @/path/to/file.txt http://example.com/",
       "",
-      "For more information and web interface, visit: https://example.com",
+      "For more information and web interface, visit: http://example.com/",
       "",
     ].join("\n"));
   });
