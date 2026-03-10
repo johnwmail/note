@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
+    "version:write": "node scripts/write-version.mjs",
     "verify": "npm run typecheck && npm run test && npm run deploy:dry-run"
   },
   "devDependencies": {

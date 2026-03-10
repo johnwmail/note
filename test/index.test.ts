@@ -37,7 +37,7 @@ describe("worker", () => {
     const body = await response.text();
     expect(body).toContain("<textarea");
     expect(body).toContain("https://github.com/johnwmail/note");
-    expect(body).toContain("vdev");
+    expect(body).toContain(">vdev<");
   });
 
   it("creates a note", async () => {

@@ -12,7 +12,7 @@ jobs:
     permissions:
       contents: read
     env:
-      APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'vdev' }}
+      APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
       REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
       WORKER_NAME: ${{ vars.CLOUDFLARE_WORKER_NAME || 'note' }}
     steps:
@@ -28,19 +28,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set app version
-        run: |
-          node <<'EOF'
-          const fs = require('fs');
-
-          const content = [
-            `export const APP_VERSION = ${JSON.stringify(process.env.APP_VERSION)};`,
-            `export const REPOSITORY_URL = ${JSON.stringify(process.env.REPOSITORY_URL)};`,
-            '',
-          ].join('\n');
-
-          fs.writeFileSync('src/version.ts', content);
-          EOF
+      - name: Write app version metadata
+        run: npm run version:write
 
       - name: Verify app
         run: npm run verify
