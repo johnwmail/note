@@ -30,11 +30,16 @@ jobs:
 
       - name: Set app version
         run: |
-          APP_VERSION_ESCAPED=${APP_VERSION//\'/\\\'}
-          REPOSITORY_URL_ESCAPED=${REPOSITORY_URL//\'/\\\'}
-          cat > src/version.ts <<EOF
-          export const APP_VERSION = '${APP_VERSION_ESCAPED}';
-          export const REPOSITORY_URL = '${REPOSITORY_URL_ESCAPED}';
+          node <<'EOF'
+          const fs = require('fs');
+
+          const content = [
+            `export const APP_VERSION = ${JSON.stringify(process.env.APP_VERSION)};`,
+            `export const REPOSITORY_URL = ${JSON.stringify(process.env.REPOSITORY_URL)};`,
+            '',
+          ].join('\n');
+
+          fs.writeFileSync('src/version.ts', content);
           EOF
 
       - name: Verify app
