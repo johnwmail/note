@@ -87,6 +87,30 @@ describe("worker", () => {
     expect(response.status).toBe(404);
   });
 
+  it("returns plain text usage for curl root", async () => {
+    const response = await worker.fetch(new Request("https://example.com/", {
+      headers: { "User-Agent": "curl/8.5.0" },
+    }), makeEnv() as never);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+    expect(await response.text()).toBe([
+      "Note - Lightweight note-taking app",
+      `Version: ${APP_VERSION}`,
+      "",
+      "Usage Examples:",
+      "===============",
+      "",
+      "# create new paste:",
+      "echo \"Hello World\" | curl -sL --data-binary @- https://example.com",
+      "",
+      "# create new paste with file:",
+      "curl -sL --data-binary @/path/to/file.txt https://example.com",
+      "",
+      "For more information and web interface, visit: https://example.com",
+      "",
+    ].join("\n"));
+  });
+
   it("returns plain text for curl get", async () => {
     const env = makeEnv();
     env.NOTES_BUCKET.storage.set("note/ABCDE", "curl content");

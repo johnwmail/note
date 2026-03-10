@@ -1,4 +1,5 @@
 import { renderHTML } from "./html";
+import { APP_VERSION } from "./version";
 import { deleteNote, readNote, writeNote } from "./storage";
 import { extractPathNoteId, generateNoteId, getBasePath, isCurlRequest, validateNoteId } from "./note";
 import { corsHeaders, html, json, jsonError, text } from "./response";
@@ -48,6 +49,10 @@ async function handleGet(request: Request, env: Env, url: URL): Promise<Response
     return text("Invalid note ID", { status: 400 });
   }
 
+  if (isCurlRequest(request) && !noteId) {
+    return text(renderCurlHelp(url));
+  }
+
   let content = "";
   if (noteId) {
     content = await readNote(env, noteId);
@@ -62,6 +67,26 @@ async function handleGet(request: Request, env: Env, url: URL): Promise<Response
   }
 
   return html(renderHTML(noteId, content, request));
+}
+
+function renderCurlHelp(url: URL): string {
+  const host = url.host;
+  return [
+    "Note - Lightweight note-taking app",
+    `Version: ${APP_VERSION}`,
+    "",
+    "Usage Examples:",
+    "===============",
+    "",
+    "# create new paste:",
+    `echo \"Hello World\" | curl -sL --data-binary @- https://${host}`,
+    "",
+    "# create new paste with file:",
+    `curl -sL --data-binary @/path/to/file.txt https://${host}`,
+    "",
+    `For more information and web interface, visit: https://${host}`,
+    "",
+  ].join("\n");
 }
 
 async function handlePost(request: Request, env: Env, url: URL): Promise<Response> {

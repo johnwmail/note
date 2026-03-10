@@ -98,7 +98,8 @@ Rules:
 - generated note IDs are 5 characters
 - max note size is 256 KB
 - empty content deletes the note
-- curl GET returns raw note text
+- curl GET on `/noteid/:id` returns raw note text
+- curl GET on `/` returns a plain-text CLI usage guide
 - curl POST returns the full note URL
 - the app header links to the GitHub repository
 - app version defaults to `vdev` and tag deploys replace it with the release tag
