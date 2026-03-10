@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import worker from "../src/index";
+import { APP_VERSION, REPOSITORY_URL } from "../src/version";
 
 class MockR2ObjectBody {
   constructor(private readonly value: string) {}
@@ -36,8 +37,8 @@ describe("worker", () => {
     expect(response.headers.get("content-type")).toContain("text/html");
     const body = await response.text();
     expect(body).toContain("<textarea");
-    expect(body).toContain("https://github.com/johnwmail/note");
-    expect(body).toContain(">vdev<");
+    expect(body).toContain(REPOSITORY_URL);
+    expect(body).toContain(`>${APP_VERSION}<`);
   });
 
   it("creates a note", async () => {
