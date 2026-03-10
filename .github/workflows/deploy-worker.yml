@@ -13,7 +13,7 @@ jobs:
       contents: read
     env:
       APP_VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'vdev' }}
-      REPOSITORY_URL: https://github.com/johnwmail/note
+      REPOSITORY_URL: ${{ format('{0}/{1}', github.server_url, github.repository) }}
       WORKER_NAME: ${{ vars.CLOUDFLARE_WORKER_NAME || 'note' }}
     steps:
       - name: Checkout code
