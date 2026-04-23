@@ -423,6 +423,7 @@ export function renderHTML(noteId: string, content: string, request: Request): s
         const appBase = ${JSON.stringify(appBase)};
         let lastSaved = ${JSON.stringify(content)};
         let currentNoteId = ${JSON.stringify(noteId)};
+        let saving = false;
         const textarea = document.getElementById("content");
         const statusText = document.getElementById("statusText");
         const statusDot = document.getElementById("statusDot");
@@ -451,40 +452,40 @@ export function renderHTML(noteId: string, content: string, request: Request): s
             window.location.href = appBase;
         }
 
-        function autoSave() {
-            if (textarea.value !== lastSaved) {
-                setStatus('Saving...', 'saving');
-                const saveUrl = currentNoteId ? appBase + 'noteid/' + currentNoteId : appBase;
-                fetch(saveUrl, {
+        async function autoSave() {
+            if (saving || textarea.value === lastSaved) return;
+            saving = true;
+            setStatus('Saving...', 'saving');
+            const contentToSave = textarea.value;
+            const saveUrl = currentNoteId ? appBase + 'noteid/' + currentNoteId : appBase;
+            try {
+                const response = await fetch(saveUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ noteId: currentNoteId, content: textarea.value })
-                })
-                .then(function(response) {
-                    if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-                    return response.json();
-                })
-                .then(function(data) {
-                    if (data.success) {
-                        lastSaved = textarea.value;
-                        currentNoteId = data.noteId;
-                        const newPath = appBase + 'noteid/' + data.noteId;
-                        if (window.location.pathname !== newPath && currentNoteId) {
-                            window.history.replaceState({}, '', newPath);
-                            document.getElementById('noteInfo').textContent = data.noteId;
-                        }
-                        setStatus('Saved', 'saved');
-                        setTimeout(function() {
-                            if (statusText.textContent === 'Saved') setStatus('Ready', 'ready');
-                        }, 2000);
-                    } else {
-                        setStatus('Error: ' + (data.error || 'Save failed'), 'error');
-                    }
-                })
-                .catch(function(err) {
-                    console.error('Save error:', err);
-                    setStatus('Error: ' + (err.message || 'Network error'), 'error');
+                    body: JSON.stringify({ noteId: currentNoteId, content: contentToSave })
                 });
+                if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                const data = await response.json();
+                if (data.success) {
+                    lastSaved = contentToSave;
+                    currentNoteId = data.noteId;
+                    const newPath = appBase + 'noteid/' + data.noteId;
+                    if (window.location.pathname !== newPath && currentNoteId) {
+                        window.history.replaceState({}, '', newPath);
+                        document.getElementById('noteInfo').textContent = data.noteId;
+                    }
+                    setStatus('Saved', 'saved');
+                    setTimeout(function() {
+                        if (statusText.textContent === 'Saved') setStatus('Ready', 'ready');
+                    }, 2000);
+                } else {
+                    setStatus('Error: ' + (data.error || 'Save failed'), 'error');
+                }
+            } catch(err) {
+                console.error('Save error:', err);
+                setStatus('Error: ' + (err.message || 'Network error'), 'error');
+            } finally {
+                saving = false;
             }
         }
 
