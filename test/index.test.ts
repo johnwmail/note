@@ -52,29 +52,29 @@ describe("worker", () => {
     expect(response.status).toBe(200);
     const data = await response.json() as { success: boolean; noteId: string };
     expect(data.success).toBe(true);
-    expect(data.noteId).toHaveLength(5);
+    expect(data.noteId).toMatch(/^[A-HJ-NP-Z]{3,5}[2-9][2-9]$/);
     expect(env.NOTES_BUCKET.storage.get(`note/${data.noteId}`)).toBe("hello world");
   });
 
   it("loads an existing note", async () => {
     const env = makeEnv();
-    env.NOTES_BUCKET.storage.set("note/ABCDE", "saved content");
-    const response = await worker.fetch(new Request("https://example.com/noteid/ABCDE"), env as never);
+    env.NOTES_BUCKET.storage.set("note/GRAY47", "saved content");
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47"), env as never);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("saved content");
   });
 
   it("deletes when content is empty", async () => {
     const env = makeEnv();
-    env.NOTES_BUCKET.storage.set("note/ABCDE", "saved content");
-    const response = await worker.fetch(new Request("https://example.com/noteid/ABCDE", {
+    env.NOTES_BUCKET.storage.set("note/GRAY47", "saved content");
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ noteId: "ABCDE", content: "" }),
+      body: JSON.stringify({ noteId: "GRAY47", content: "" }),
     }), env as never);
 
     expect(response.status).toBe(200);
-    expect(env.NOTES_BUCKET.storage.has("note/ABCDE")).toBe(false);
+    expect(env.NOTES_BUCKET.storage.has("note/GRAY47")).toBe(false);
   });
 
   it("rejects invalid note ids", async () => {
@@ -113,8 +113,8 @@ describe("worker", () => {
 
   it("returns plain text for curl get", async () => {
     const env = makeEnv();
-    env.NOTES_BUCKET.storage.set("note/ABCDE", "curl content");
-    const response = await worker.fetch(new Request("https://example.com/noteid/ABCDE", {
+    env.NOTES_BUCKET.storage.set("note/GRAY47", "curl content");
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
       headers: { "User-Agent": "curl/8.5.0" },
     }), env as never);
     expect(response.status).toBe(200);
@@ -134,7 +134,7 @@ describe("worker", () => {
     }), env as never);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/plain");
-    expect(await response.text()).toMatch(/^https:\/\/example\.com\/noteid\/[A-Z0-9]{5}\n$/);
+    expect(await response.text()).toMatch(/^https:\/\/example\.com\/noteid\/[A-HJ-NP-Z]{3,5}[2-9][2-9]\n$/);
   });
 
   it("returns form response for form posts", async () => {
@@ -146,7 +146,7 @@ describe("worker", () => {
     }), env as never);
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toContain("text/plain");
-    expect(await response.text()).toMatch(/^OK: [A-Z0-9]{5}\n$/);
+    expect(await response.text()).toMatch(/^OK: [A-HJ-NP-Z]{3,5}[2-9][2-9]\n$/);
   });
 
   it("rejects oversized notes", async () => {
@@ -158,5 +158,100 @@ describe("worker", () => {
       body: JSON.stringify({ content: largeContent }),
     }), env as never);
     expect(response.status).toBe(413);
+  });
+
+  it("responds to OPTIONS preflight with CORS headers", async () => {
+    const response = await worker.fetch(new Request("https://example.com/", {
+      method: "OPTIONS",
+    }), makeEnv() as never);
+    expect(response.status).toBe(204);
+    expect(response.headers.get("access-control-allow-origin")).toBe("*");
+    expect(response.headers.get("access-control-allow-methods")).toContain("POST");
+  });
+
+  it("returns 405 for unsupported methods", async () => {
+    const response = await worker.fetch(new Request("https://example.com/", {
+      method: "DELETE",
+    }), makeEnv() as never);
+    expect(response.status).toBe(405);
+  });
+
+  it("returns 404 plain text for curl get on missing note", async () => {
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
+      headers: { "User-Agent": "curl/8.5.0" },
+    }), makeEnv() as never);
+    expect(response.status).toBe(404);
+    expect(response.headers.get("content-type")).toContain("text/plain");
+  });
+
+  it("returns 400 for POST to unsupported path", async () => {
+    const response = await worker.fetch(new Request("https://example.com/nope", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "hello" }),
+    }), makeEnv() as never);
+    expect(response.status).toBe(404);
+  });
+
+  it("returns 400 for invalid JSON body", async () => {
+    const response = await worker.fetch(new Request("https://example.com/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "not json at all",
+    }), makeEnv() as never);
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for non-object JSON body", async () => {
+    const response = await worker.fetch(new Request("https://example.com/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "null",
+    }), makeEnv() as never);
+    expect(response.status).toBe(400);
+  });
+
+  it("returns 400 for oversized note id", async () => {
+    const longId = "A".repeat(33);
+    const response = await worker.fetch(new Request(`https://example.com/noteid/${longId}`), makeEnv() as never);
+    expect(response.status).toBe(400);
+  });
+
+  it("deletes note when content is whitespace only", async () => {
+    const env = makeEnv();
+    env.NOTES_BUCKET.storage.set("note/GRAY47", "saved content");
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteId: "GRAY47", content: "   " }),
+    }), env as never);
+    expect(response.status).toBe(200);
+    expect(env.NOTES_BUCKET.storage.has("note/GRAY47")).toBe(false);
+  });
+
+  it("returns 200 when deleting a note that does not exist", async () => {
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteId: "GRAY47", content: "" }),
+    }), makeEnv() as never);
+    expect(response.status).toBe(200);
+  });
+
+  it("sets Cache-Control no-cache on html GET responses", async () => {
+    const response = await worker.fetch(new Request("https://example.com/"), makeEnv() as never);
+    expect(response.headers.get("cache-control")).toBe("no-cache");
+  });
+
+  it("body noteId takes precedence over path noteId", async () => {
+    const env = makeEnv();
+    const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ noteId: "DARK23", content: "body wins" }),
+    }), env as never);
+    expect(response.status).toBe(200);
+    expect(env.NOTES_BUCKET.storage.get("note/DARK23")).toBe("body wins");
+    expect(env.NOTES_BUCKET.storage.has("note/GRAY47")).toBe(false);
   });
 });

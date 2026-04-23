@@ -3,16 +3,41 @@ import { escapeHTML, extractPathNoteId, generateNoteId, getBasePath, validateNot
 
 describe("note helpers", () => {
   it("validates note ids", () => {
-    expect(validateNoteId("abc123")).toBe(true);
-    expect(validateNoteId("ABC12")).toBe(true);
+    // valid: generated format
+    expect(validateNoteId("GRAY47")).toBe(true);
+    expect(validateNoteId("BLAST23")).toBe(true);
+    // valid: manual word-only
+    expect(validateNoteId("APPLE")).toBe(true);
+    expect(validateNoteId("ENDENT")).toBe(true);
+    // valid: letters and allowed digits mixed
+    expect(validateNoteId("ABC23XY")).toBe(true);
+    // invalid: contains I or O
+    expect(validateNoteId("OLIVE")).toBe(false);
+    expect(validateNoteId("BIRD")).toBe(false);
+    // invalid: contains 0 or 1
+    expect(validateNoteId("NOTE01")).toBe(false);
+    // invalid: lowercase
+    expect(validateNoteId("gray47")).toBe(false);
+    // invalid: special chars
     expect(validateNoteId("invalid@id")).toBe(false);
+    // invalid: empty
     expect(validateNoteId("")).toBe(false);
+    // invalid: too short
+    expect(validateNoteId("AB")).toBe(false);
+    // invalid: too long (33 chars)
+    expect(validateNoteId("A".repeat(33))).toBe(false);
   });
 
-  it("generates 5-char note ids", () => {
+  it("generates WORDnn format note ids", () => {
     const noteId = generateNoteId();
-    expect(noteId).toHaveLength(5);
     expect(validateNoteId(noteId)).toBe(true);
+    expect(noteId).toMatch(/^[A-HJ-NP-Z]{3,5}[2-9][2-9]$/);
+    // digits must only be 2-9
+    const digits = noteId.slice(-2);
+    expect(digits).toMatch(/^[2-9][2-9]$/);
+    // word part must contain no I or O
+    const word = noteId.slice(0, -2);
+    expect(word).not.toMatch(/[IO]/);
   });
 
   it("escapes html", () => {

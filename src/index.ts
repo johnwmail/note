@@ -6,6 +6,7 @@ import { corsHeaders, html, json, jsonError, text } from "./response";
 import type { Env, NoteRequest, NoteResponse } from "./types";
 
 const MAX_NOTE_SIZE_BYTES = 256 * 1024;
+const FAVICON_BYTES = Uint8Array.from(atob("R0lGODlhEAAQAKIGAL7FzEBUaLK5wnOBkJCbp9nd4f///wAAACH5BAEAAAYALAAAAAAQABAAAANJaKrR7msFMga1o8UguvcBECyDUJ1lJjIdWgrharxfG49cDQL8SNeqXk4H4/V+n2BB9GjGjCOJcQrdUHmFZZRxnW4NzyvhC3ZCEgA7"), c => c.charCodeAt(0));
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -22,7 +23,7 @@ async function routeRequest(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
 
   if (url.pathname === "/favicon.ico") {
-    return new Response(Uint8Array.from(atob("R0lGODlhEAAQAKIGAL7FzEBUaLK5wnOBkJCbp9nd4f///wAAACH5BAEAAAYALAAAAAAQABAAAANJaKrR7msFMga1o8UguvcBECyDUJ1lJjIdWgrharxfG49cDQL8SNeqXk4H4/V+n2BB9GjGjCOJcQrdUHmFZZRxnW4NzyvhC3ZCEgA7"), c => c.charCodeAt(0)), {
+    return new Response(FAVICON_BYTES, {
       headers: { "Content-Type": "image/gif" },
     });
   }
@@ -146,7 +147,11 @@ function parseNoteRequest(bodyText: string, contentType: string, pathname: strin
 
   if (contentType.includes("application/json")) {
     try {
-      const body = JSON.parse(bodyText) as NoteRequest;
+      const parsed = JSON.parse(bodyText);
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        return jsonError(400, "Invalid JSON body");
+      }
+      const body = parsed as NoteRequest;
       return {
         noteId: body.noteId || pathNoteId,
         content: typeof body.content === "string" ? body.content : "",

@@ -23,6 +23,7 @@ export function text(body: string, init: ResponseInit = {}): Response {
 export function html(body: string, init: ResponseInit = {}): Response {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "text/html; charset=utf-8");
+  headers.set("Cache-Control", "no-cache");
   return new Response(body, { ...init, headers });
 }
 
