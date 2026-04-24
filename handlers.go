@@ -194,6 +194,7 @@ func parseNoteRequest(r *http.Request, bodyBytes []byte, clientIP string) (NoteR
 			return req, contentType, nil
 		}
 		req.Content = string(bodyBytes)
+		req.NoteID = extractPathNoteID(r)
 		log.Printf("[INFO] Received %d bytes from raw form body from %s", len(bodyBytes), clientIP)
 		return req, contentType, nil
 	}
@@ -626,6 +627,8 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
         const printableEl = document.getElementById("printable");
         const toastEl = document.getElementById("toast");
 
+        let saving = false;
+
         function setStatus(text, state) {
             statusText.textContent = text;
             statusDot.className = 'status-dot ' + (state || 'ready');
@@ -649,43 +652,47 @@ func renderHTML(w http.ResponseWriter, noteID string, content string, r *http.Re
 
         // Auto-save
         function autoSave() {
-            if (textarea.value !== lastSaved) {
-                setStatus('Saving...', 'saving');
+            if (saving || textarea.value === lastSaved) return;
+            saving = true;
+            setStatus('Saving...', 'saving');
 
-                const saveUrl = currentNoteId ? appBase + 'noteid/' + currentNoteId : appBase;
-                fetch(saveUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ noteId: currentNoteId, content: textarea.value })
-                })
-                .then(function(response) {
-                    if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + response.statusText);
-                    return response.json();
-                })
-                .then(function(data) {
-                    if (data.success) {
-                        lastSaved = textarea.value;
-                        currentNoteId = data.noteId;
+            const contentToSave = textarea.value;
+            const saveUrl = currentNoteId ? appBase + 'noteid/' + currentNoteId : appBase;
+            fetch(saveUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ noteId: currentNoteId, content: contentToSave })
+            })
+            .then(function(response) {
+                if (!response.ok) throw new Error('HTTP ' + response.status + ': ' + response.statusText);
+                return response.json();
+            })
+            .then(function(data) {
+                if (data.success) {
+                    lastSaved = contentToSave;
+                    currentNoteId = data.noteId;
 
-                        var newPath = appBase + 'noteid/' + data.noteId;
-                        if (window.location.pathname !== newPath && currentNoteId) {
-                            window.history.replaceState({}, '', newPath);
-                            document.getElementById('noteInfo').textContent = data.noteId;
-                        }
-
-                        setStatus('Saved', 'saved');
-                        setTimeout(function() {
-                            if (statusText.textContent === 'Saved') setStatus('Ready', 'ready');
-                        }, 2000);
-                    } else {
-                        setStatus('Error: ' + (data.error || 'Save failed'), 'error');
+                    var newPath = appBase + 'noteid/' + data.noteId;
+                    if (window.location.pathname !== newPath && currentNoteId) {
+                        window.history.replaceState({}, '', newPath);
+                        document.getElementById('noteInfo').textContent = data.noteId;
                     }
-                })
-                .catch(function(err) {
-                    console.error('Save error:', err);
-                    setStatus('Error: ' + (err.message || 'Network error'), 'error');
-                });
-            }
+
+                    setStatus('Saved', 'saved');
+                    setTimeout(function() {
+                        if (statusText.textContent === 'Saved') setStatus('Ready', 'ready');
+                    }, 2000);
+                } else {
+                    setStatus('Error: ' + (data.error || 'Save failed'), 'error');
+                }
+            })
+            .catch(function(err) {
+                console.error('Save error:', err);
+                setStatus('Error: ' + (err.message || 'Network error'), 'error');
+            })
+            .finally(function() {
+                saving = false;
+            });
         }
 
         setInterval(autoSave, 1000);

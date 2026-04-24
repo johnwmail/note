@@ -1,7 +1,6 @@
 package main
 
 import (
-	"regexp"
 	"testing"
 )
 
@@ -11,17 +10,20 @@ func TestValidateNoteID(t *testing.T) {
 		id    string
 		valid bool
 	}{
-		{"abc123", true},
-		{"ABC", true},
-		{"123", true},
-		{"a", true},
-		{"", false},
+		{"ACE23", true},
+		{"BLAST47", true},
+		{"ZEBRA99", true},
+		{"123", false}, // Contains 1
+		{"a", false},   // Lowercase
+		{"", false},    // Empty
 		{"abc-def", false},
 		{"abc_def", false},
 		{"abc@def", false},
 		{"abc def", false},
 		{"abc.def", false},
 		{"../etc", false},
+		{"ABCDEFGHJKLMNPQRSTUVWXYZ23456789", true}, // 32 chars
+		{"ABCDEFGHJKLMNPQRSTUVWXYZ23456789A", false}, // 33 chars
 	}
 
 	for _, test := range tests {
@@ -39,30 +41,15 @@ func TestGenerateNoteID(t *testing.T) {
 	for i := 0; i < tests; i++ {
 		id := GenerateNoteID()
 
-		// Check length
-		if len(id) != 5 {
-			t.Errorf("Generated ID has length %d, expected 5", len(id))
-		}
-
-		// Check alphanumeric
-		if !regexp.MustCompile("^[a-zA-Z0-9]+$").MatchString(id) {
-			t.Errorf("Generated ID %s is not alphanumeric", id)
+		// Check valid length
+		if len(id) < 5 || len(id) > 7 {
+			t.Errorf("Generated ID has length %d, expected 5-7", len(id))
 		}
 
 		// Check it's valid
 		if !ValidateNoteID(id) {
 			t.Errorf("Generated ID %s is not valid", id)
 		}
-	}
-
-	// Check uniqueness (probabilistic)
-	ids := make(map[string]bool)
-	for i := 0; i < 100; i++ {
-		id := GenerateNoteID()
-		if ids[id] {
-			t.Logf("Warning: Generated duplicate ID %s (may be rare)", id)
-		}
-		ids[id] = true
 	}
 }
 

@@ -67,10 +67,10 @@ func TestHandleGetEmpty(t *testing.T) {
 // TestHandleGetExisting tests GET request for existing note
 func TestHandleGetExisting(t *testing.T) {
 	storage := NewMockStorage()
-	_ = storage.Write(context.Background(), "test123", "test content")
+	_ = storage.Write(context.Background(), "TEST23", "test content")
 
 	handler := HandleGet(storage)
-	req := httptest.NewRequest("GET", "/?note=test123", nil)
+	req := httptest.NewRequest("GET", "/?note=TEST23", nil)
 	rec := httptest.NewRecorder()
 
 	handler(rec, req)
@@ -131,7 +131,7 @@ func TestHandlePostExisting(t *testing.T) {
 	handler := HandlePost(storage)
 
 	payload := NoteRequest{
-		NoteID:  "test123",
+		NoteID:  "TEST23",
 		Content: "updated content",
 	}
 	body, _ := json.Marshal(payload)
@@ -155,7 +155,7 @@ func TestHandlePostExisting(t *testing.T) {
 		t.Errorf("Expected success=true")
 	}
 
-	if content, _ := storage.Read(context.Background(), "test123"); content != "updated content" {
+	if content, _ := storage.Read(context.Background(), "TEST23"); content != "updated content" {
 		t.Errorf("Expected content to be updated")
 	}
 }
@@ -194,12 +194,12 @@ func TestHandlePostInvalidID(t *testing.T) {
 // TestHandlePostDelete tests POST request with empty content (delete)
 func TestHandlePostDelete(t *testing.T) {
 	storage := NewMockStorage()
-	_ = storage.Write(context.Background(), "test123", "original content")
+	_ = storage.Write(context.Background(), "TEST23", "original content")
 
 	handler := HandlePost(storage)
 
 	payload := NoteRequest{
-		NoteID:  "test123",
+		NoteID:  "TEST23",
 		Content: "",
 	}
 	body, _ := json.Marshal(payload)
@@ -215,7 +215,7 @@ func TestHandlePostDelete(t *testing.T) {
 	}
 
 	// Verify note was deleted
-	if content, _ := storage.Read(context.Background(), "test123"); content != "" {
+	if content, _ := storage.Read(context.Background(), "TEST23"); content != "" {
 		t.Errorf("Expected note to be deleted")
 	}
 }
@@ -263,14 +263,14 @@ func TestParseNoteRequestJSONPath(t *testing.T) {
 
 // TestParseNoteRequestFormAndRaw tests form parsing and raw body path fallback
 func TestParseNoteRequestFormAndRaw(t *testing.T) {
-	form := "text=hi&noteId=FORMID"
+	form := "text=hi&noteId=FRMID"
 	req := httptest.NewRequest("POST", "/", bytes.NewBufferString(form))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	noteReq, _, err := parseNoteRequest(req, []byte(form), "127.0.0.1")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if noteReq.NoteID != "FORMID" || noteReq.Content != "hi" {
+	if noteReq.NoteID != "FRMID" || noteReq.Content != "hi" {
 		t.Fatalf("unexpected form parse result: %#v", noteReq)
 	}
 
@@ -283,5 +283,18 @@ func TestParseNoteRequestFormAndRaw(t *testing.T) {
 	}
 	if noteReq.NoteID != "RAWID" || noteReq.Content != "raw body" {
 		t.Fatalf("unexpected raw parse result: %#v", noteReq)
+	}
+
+	// curl --data-binary sets Content-Type: application/x-www-form-urlencoded but body is plain text
+	// NoteID must be taken from the path, not ignored
+	req = httptest.NewRequest("POST", "/noteid/ABCDE", bytes.NewBufferString("hello content"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	noteReq, _, err = parseNoteRequest(req, []byte("hello content"), "127.0.0.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if noteReq.NoteID != "ABCDE" || noteReq.Content != "hello content" {
+		t.Fatalf("curl raw body via form content-type lost path noteID: %#v", noteReq)
 	}
 }

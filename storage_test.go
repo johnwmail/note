@@ -13,7 +13,7 @@ func TestLocalStorageRead(t *testing.T) {
 
 	// Write test file
 	testContent := "test content"
-	filePath := filepath.Join(tmpDir, "test123")
+	filePath := filepath.Join(tmpDir, "TEST23")
 	if err := os.WriteFile(filePath, []byte(testContent), 0644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
@@ -25,7 +25,7 @@ func TestLocalStorageRead(t *testing.T) {
 	}
 
 	// Test read
-	content, err := storage.Read(context.Background(), "test123")
+	content, err := storage.Read(context.Background(), "TEST23")
 	if err != nil {
 		t.Fatalf("Failed to read note: %v", err)
 	}
@@ -65,13 +65,13 @@ func TestLocalStorageWrite(t *testing.T) {
 	testContent := "test content"
 
 	// Test write
-	err = storage.Write(context.Background(), "test123", testContent)
+	err = storage.Write(context.Background(), "TEST23", testContent)
 	if err != nil {
 		t.Fatalf("Failed to write note: %v", err)
 	}
 
 	// Verify file exists
-	filePath := filepath.Join(tmpDir, "test123")
+	filePath := filepath.Join(tmpDir, "TEST23")
 	if _, err := os.Stat(filePath); err != nil {
 		t.Fatalf("Note file not created: %v", err)
 	}
@@ -92,13 +92,13 @@ func TestLocalStorageDelete(t *testing.T) {
 	}
 
 	// Create test file
-	filePath := filepath.Join(tmpDir, "test123")
+	filePath := filepath.Join(tmpDir, "TEST23")
 	if err := os.WriteFile(filePath, []byte("content"), 0644); err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
 
 	// Test delete
-	err = storage.Delete(context.Background(), "test123")
+	err = storage.Delete(context.Background(), "TEST23")
 	if err != nil {
 		t.Fatalf("Failed to delete note: %v", err)
 	}
