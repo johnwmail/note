@@ -6,7 +6,7 @@ A lightweight note-taking app built with **TypeScript**, deployed on **Cloudflar
 
 - simple editor with autosave
 - shareable note URLs
-- 5-character note IDs
+- unique note IDs (generated as WORDnn format like "BLAST47")
 - curl-friendly read/write behavior
 - delete note by clearing content
 - print support
@@ -94,8 +94,8 @@ JSON request body:
 
 Rules:
 
-- note IDs are alphanumeric
-- generated note IDs are 5 characters
+- note IDs are 3–32 characters, using uppercase letters (no I or O) and digits (no 0 or 1)
+- generated note IDs use WORDnn format (e.g., "BLAST47", "WORK23")
 - max note size is 256 KB
 - empty content deletes the note
 - curl GET on `/noteid/:id` returns raw note text
