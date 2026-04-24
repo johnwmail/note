@@ -100,7 +100,7 @@ Runtime detection is automatic:
 Retrieve and display a note.
 
 **Parameters:**
-- `noteId` (path) or `note` (query): Note ID (alphanumeric, 5-20 chars)
+- `noteId` (path) or `note` (query): Note ID (alphanumeric, 3–32 chars, no I/O/0/1)
 
 **Notes:**
 - The preferred URL format is now `/noteid/{noteId}` for shell-friendly links (e.g., `http://example.com/noteid/ABCDE`).
@@ -141,7 +141,7 @@ Save or delete a note.
 ```
 
 **Behavior:**
-- If `noteId` is empty, a random 5-character ID is generated
+- If `noteId` is empty, a random WORDnn ID is generated (e.g., "BLAST47")
 - If `content` is empty, the note is deleted
 - Otherwise, the note is saved
 
