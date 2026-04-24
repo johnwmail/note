@@ -284,4 +284,17 @@ func TestParseNoteRequestFormAndRaw(t *testing.T) {
 	if noteReq.NoteID != "RAWID" || noteReq.Content != "raw body" {
 		t.Fatalf("unexpected raw parse result: %#v", noteReq)
 	}
+
+	// curl --data-binary sets Content-Type: application/x-www-form-urlencoded but body is plain text
+	// NoteID must be taken from the path, not ignored
+	req = httptest.NewRequest("POST", "/noteid/ABCDE", bytes.NewBufferString("hello content"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("User-Agent", "curl/8.5.0")
+	noteReq, _, err = parseNoteRequest(req, []byte("hello content"), "127.0.0.1")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if noteReq.NoteID != "ABCDE" || noteReq.Content != "hello content" {
+		t.Fatalf("curl raw body via form content-type lost path noteID: %#v", noteReq)
+	}
 }

@@ -194,6 +194,7 @@ func parseNoteRequest(r *http.Request, bodyBytes []byte, clientIP string) (NoteR
 			return req, contentType, nil
 		}
 		req.Content = string(bodyBytes)
+		req.NoteID = extractPathNoteID(r)
 		log.Printf("[INFO] Received %d bytes from raw form body from %s", len(bodyBytes), clientIP)
 		return req, contentType, nil
 	}
