@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [main, dev, feature/golang-v0.2.6]
+    branches: [golang]
   pull_request:
-    branches: [main, dev, feature/golang-v0.2.6]
+    branches: [golang]
   workflow_dispatch:
 
 env:

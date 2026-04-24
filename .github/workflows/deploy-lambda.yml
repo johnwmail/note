@@ -2,7 +2,7 @@ name: Deploy to AWS Lambda (Optional)
 
 on:
   push:
-    tags: ['v*']
+    branches: [golang]
   workflow_dispatch:
     inputs:
       environment:
