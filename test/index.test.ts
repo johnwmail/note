@@ -243,6 +243,19 @@ describe("worker", () => {
     expect(response.headers.get("cache-control")).toBe("no-cache");
   });
 
+  it("curl raw body post to specific noteid saves under that id", async () => {
+    const env = makeEnv();
+    const response = await worker.fetch(new Request("https://example.com/noteid/APPLE", {
+      method: "POST",
+      headers: { "User-Agent": "curl/8.5.0" },
+      body: "hello content",
+    }), env as never);
+    expect(response.status).toBe(200);
+    const body = await response.text();
+    expect(body.trim()).toBe("https://example.com/noteid/APPLE");
+    expect(env.NOTES_BUCKET.storage.get("note/APPLE")).toBe("hello content");
+  });
+
   it("body noteId takes precedence over path noteId", async () => {
     const env = makeEnv();
     const response = await worker.fetch(new Request("https://example.com/noteid/GRAY47", {
